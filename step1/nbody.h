@@ -37,19 +37,6 @@ typedef struct
   float* weight;
 } t_particles;
 
-/**
-/* Velocities data structure (to be used as buffer for partial results)
- */
-typedef struct
-{
-  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //                 FILL IN: Velocities data structure optimal for the use on GPU (step 0)                           //
-  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  float* x;
-  float* y;
-  float* z;
-} t_velocities;
-
 
 /**
  * CUDA kernel to calculate gravitation and collision velocity and update particles.
@@ -59,7 +46,7 @@ typedef struct
  * @param dt      - Size of the time step
  */
 __global__ void calculate_velocity(const t_particles p_in,
-                                   const t_particles p_out,
+                                   t_particles p_out,
                                    int          N,
                                    float        dt);
 

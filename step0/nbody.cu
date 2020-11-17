@@ -21,32 +21,43 @@
  */
 __global__ void calculate_gravitation_velocity(t_particles p, t_velocities tmp_vel, int N, float dt)
 {
+    // Computes the global index of thread within the grid
     int i = blockDim.x * blockIdx.x + threadIdx.x;
+    // Checks whether the thread is not outside the particles borders
     if (i < N) {
 
+        // Loads the particle data covered by the individual thread
         float pos_x = p.pos_x[i];
         float pos_y = p.pos_y[i];
         float pos_z = p.pos_z[i];
 
+        // Initialise of auxiliary accumulators of velocity
         float tmp_vel_x = 0.0f;
         float tmp_vel_y = 0.0f;
         float tmp_vel_z = 0.0f;
 
+        // The iterations over all particles to compute the gravitation velocity to them
         for (int j = 0; j < N; j++) {
 
+            // Instruction Level Parallelism
+            float s = -G * dt * p.weight[j];
+            // Computes the distance between the relevant particles
             float r_x = pos_x - p.pos_x[j];
             float r_y = pos_y - p.pos_y[j];
             float r_z = pos_z - p.pos_z[j];
 
-            float weight_j = p.weight[j];
+            // Computes inverse distance between particles and their distances
             float inv_dist = sqrtf(r_x * r_x + r_y * r_y + r_z * r_z);
-            float s = weight_j * (-G * dt / (inv_dist * inv_dist * inv_dist + FLT_MIN));
+            // Computes the gravitation velocity (Fg_dt_m2_r)
+            s /= (inv_dist * inv_dist * inv_dist + FLT_MIN);
 
+            // The speed that a particle body receives due to the strength of the relevant particle
             tmp_vel_x += (inv_dist > COLLISION_DISTANCE) ? r_x * s : 0.0f;
             tmp_vel_y += (inv_dist > COLLISION_DISTANCE) ? r_y * s : 0.0f;
             tmp_vel_z += (inv_dist > COLLISION_DISTANCE) ? r_z * s : 0.0f;
         }
 
+        // Stores the final computed velocities of each particle to the auxiliary velocity vector
         tmp_vel.x[i] = tmp_vel_x;
         tmp_vel.y[i] = tmp_vel_y;
         tmp_vel.z[i] = tmp_vel_z;
@@ -64,9 +75,11 @@ __global__ void calculate_gravitation_velocity(t_particles p, t_velocities tmp_v
  */
 __global__ void calculate_collision_velocity(t_particles p, t_velocities tmp_vel, int N, float dt)
 {
+    // Computes the global index of thread within the grid
     int i = blockDim.x * blockIdx.x + threadIdx.x;
-
+    // Checks whether the thread is not outside the particles borders
     if (i < N) {
+        // Loads the particle data covered by the individual thread
         float pos_x = p.pos_x[i];
         float pos_y = p.pos_y[i];
         float pos_z = p.pos_z[i];
@@ -75,24 +88,32 @@ __global__ void calculate_collision_velocity(t_particles p, t_velocities tmp_vel
         float vel_z = p.vel_z[i];
         float weight_i = p.weight[i];
 
+        // Initialise of auxiliary accumulators of velocity
         float tmp_vel_x = 0.0f;
         float tmp_vel_y = 0.0f;
         float tmp_vel_z = 0.0f;
 
+        // The iterations over all particles to compute the collision velocity to them
         for (int j = 0; j < N; j++) {
 
+            // Computes the distance between the relevant particles
             float r_x = pos_x - p.pos_x[j];
             float r_y = pos_y - p.pos_y[j];
             float r_z = pos_z - p.pos_z[j];
 
+            // Loads the weight of the processing particle
             float weight_j = p.weight[j];
+            // Computes inverse distance between particles and their distances
             float inv_dist = sqrtf(r_x * r_x + r_y * r_y + r_z * r_z);
 
+            // Checks whether the particles are in the sufficient near distance for collision
             if (inv_dist > 0.0f && inv_dist < COLLISION_DISTANCE) {
+                // Computes the temporary partial results to eliminate recalculation
                 float weight_diff = weight_i - weight_j;
                 float weight_sum = weight_i + weight_j;
                 float weight_j_x_2 = 2 * weight_j;
 
+                // Computes the collision velocities between the relevant particles and accumulate the results
                 tmp_vel_x += inv_dist > 0.0f ?
                              ((weight_diff * vel_x + weight_j_x_2 * p.vel_x[j]) / weight_sum) - vel_x : 0.0f;
                 tmp_vel_y += inv_dist > 0.0f ?
@@ -102,6 +123,7 @@ __global__ void calculate_collision_velocity(t_particles p, t_velocities tmp_vel
             }
         }
 
+        // Stores the final computed velocities of each particle to the auxiliary velocity vector
         tmp_vel.x[i] += tmp_vel_x;
         tmp_vel.y[i] += tmp_vel_y;
         tmp_vel.z[i] += tmp_vel_z;
@@ -119,13 +141,16 @@ __global__ void calculate_collision_velocity(t_particles p, t_velocities tmp_vel
  */
 __global__ void update_particle(t_particles p, t_velocities tmp_vel, int N, float dt)
 {
+    // Computes the global index of thread within the grid
     int i = blockDim.x * blockIdx.x + threadIdx.x;
-
+    // Checks whether the thread is not outside the particles borders
     if (i < N) {
+        // Updates the velocity of particles with respect to the computed gravitation and collision velocity
         p.vel_x[i] += tmp_vel.x[i];
         p.vel_y[i] += tmp_vel.y[i];
         p.vel_z[i] += tmp_vel.z[i];
 
+        // Updates the positions of particles with respect to the updated velocity
         p.pos_x[i] += p.vel_x[i] * dt;
         p.pos_y[i] += p.vel_y[i] * dt;
         p.pos_z[i] += p.vel_z[i] * dt;

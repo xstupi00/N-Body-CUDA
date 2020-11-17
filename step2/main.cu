@@ -62,16 +62,19 @@ int main(int argc, char **argv) {
     printf("reduction threads/block: %d\n", red_thr_blc);
     printf("reduction blocks/grid: %lu\n", reductionGrid);
 
+    // Number of records to continuous writing of partial results
     const size_t recordsNum = (writeFreq > 0) ? (steps + writeFreq - 1) / writeFreq : 0;
     writeFreq = (writeFreq > 0) ? writeFreq : 0;
 
-
+    // CPU particles structures
     t_particles particles_cpu;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //                            FILL IN: CPU side memory allocation (step 0)                                        //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // The overall memory size of input particles
     size_t size = N * sizeof(float);
+    // Allocates page-locked memory on the host. Maps the allocation into the CUDA address space
     checkCudaErrors(cudaHostAlloc(&particles_cpu.pos_x, size, cudaHostAllocMapped));
     checkCudaErrors(cudaHostAlloc(&particles_cpu.pos_y, size, cudaHostAllocMapped));
     checkCudaErrors(cudaHostAlloc(&particles_cpu.pos_z, size, cudaHostAllocMapped));
@@ -117,8 +120,10 @@ int main(int argc, char **argv) {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                  FILL IN: GPU side memory allocation (step 0)                                  //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // GPU particles structure
     t_particles particles_gpu;
 
+    // Allocate memory on the device
     checkCudaErrors(cudaMalloc(&particles_gpu.pos_x, size));
     checkCudaErrors(cudaMalloc(&particles_gpu.pos_y, size));
     checkCudaErrors(cudaMalloc(&particles_gpu.pos_z, size));
@@ -131,6 +136,7 @@ int main(int argc, char **argv) {
     //                                       FILL IN: memory transfers (step 0)                                       //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    // Copies particles data from host to device.
     checkCudaErrors(cudaMemcpy(particles_gpu.pos_x, particles_cpu.pos_x, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(particles_gpu.pos_y, particles_cpu.pos_y, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(particles_gpu.pos_z, particles_cpu.pos_z, size, cudaMemcpyHostToDevice));
@@ -146,6 +152,7 @@ int main(int argc, char **argv) {
         //                                       FILL IN: kernels invocation (step 0)                                 //
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+        // Compute the size of the shared memory (for one grid block)
         size_t shm_mem = thr_blc * sizeof(float) * 7;
         calculate_velocity<<<simulationGrid, thr_blc, shm_mem>>>(particles_gpu, N, dt);
 
@@ -176,6 +183,7 @@ int main(int argc, char **argv) {
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     float4 comOnGPU;
 
+    // Copies particles data from device to host.
     checkCudaErrors(cudaMemcpy(particles_cpu.pos_x, particles_gpu.pos_x, size, cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy(particles_cpu.pos_y, particles_gpu.pos_y, size, cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy(particles_cpu.pos_z, particles_gpu.pos_z, size, cudaMemcpyDeviceToHost));
@@ -207,6 +215,7 @@ int main(int argc, char **argv) {
     h5Helper.writeComFinal(comOnGPU.x, comOnGPU.y, comOnGPU.z, comOnGPU.w);
     h5Helper.writeParticleDataFinal();
 
+    // Free page-locked memory.
     checkCudaErrors(cudaFreeHost(particles_cpu.pos_x));
     checkCudaErrors(cudaFreeHost(particles_cpu.pos_y));
     checkCudaErrors(cudaFreeHost(particles_cpu.pos_z));
@@ -215,6 +224,7 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaFreeHost(particles_cpu.vel_z));
     checkCudaErrors(cudaFreeHost(particles_cpu.weight));
 
+    // Free memory on the device.
     checkCudaErrors(cudaFree(particles_gpu.pos_x));
     checkCudaErrors(cudaFree(particles_gpu.pos_y));
     checkCudaErrors(cudaFree(particles_gpu.pos_z));

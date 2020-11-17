@@ -1,54 +1,109 @@
-
-Paralelní programování na GPU (PCG 2020)
-Projekt c. 1 (cuda)
-Login: xlogin00
-
+Parallel Computations on GPU (PCG 2020)
+Assignment no. 1 (cuda)
+Login: xstupi00
 
 
-
-Krok 0: základní implementace
+Krok 0: základní implementace (STEPS=500, THREADS_PER_BLOCK=1024)
 =============================
 Velikost dat    	čas [s]
-	 1024             ...
- 2 * 1024             ...
- 3 * 1024             ...
- 4 * 1024             ...
-  ...				  ...
-  ...            	  ...
-10 * 1024             ...
-11 * 1024             ...
-  ...				  ...
-  ...				  ...
-20 * 1024             ...
-21 * 1024             ...
-  ...				  ...
-  ...				  ...
-30 * 1024             ...
+ 1 * 1024 			 0.88174
+ 2 * 1024 			 1.74726
+ 3 * 1024 			 2.60385
+ 4 * 1024 			 3.47223
+ 5 * 1024 			 4.33136
+ 6 * 1024 			 5.18821
+ 7 * 1024 			 6.06037
+ 8 * 1024 			 6.92948
+ 9 * 1024 			 7.82831
+10 * 1024 			 8.64371
+11 * 1024 			 9.52404
+12 * 1024 			 10.3747
+13 * 1024 			 11.2621
+14 * 1024 			 23.6263
+15 * 1024 			 25.3215
+16 * 1024 			 27.1330
+17 * 1024 			 28.8762
+18 * 1024 			 30.5907
+19 * 1024 			 32.3282
+20 * 1024 			 34.1332
+21 * 1024 			 35.8376
+22 * 1024 			 37.5434
+23 * 1024 			 39.6028
+24 * 1024 			 41.4163
+25 * 1024 			 43.1235
+26 * 1024 			 44.8353
+27 * 1024 			 68.3380
+28 * 1024 			 70.8140
+29 * 1024 			 73.5257
+30 * 1024 			 76.1474
 
 Vyskytla se nějaká anomálie v datech
 Pokud ano, vysvětlete:
+
+The kernel uses 36 registers for each thread - 36864 registers for each block. "Tesla K20m" provides up to 65536
+registers for each block. Because the kernel uses 36864 registers for each block each SM is limited simultaneously
+executing 1 block (32 warps). Each block includes 1024 threads per block, therefore each block processes 1024 particles
+at once. Since "Tesla K20m" provides up to 13 SM, the maximal number of processed particles at once is limited by
+13 * 1024:
+
+13 SM Multiprocessors, 1 block per SM Multiprocessor, 1024 threads per block
+13 SM Multiprocessors * 1 block per SM Multiprocessor = 13 executed blocks
+13 executed blocks * 1024 threads per block = 13 * 1024
+
+In view of these facts, we can see the performance anomalies at a larger number of input particles such as this limit.
+In such case, "Tesla K20m" is not able to process all the particles at once, and some SM processor has to do the job
+repeatedly. Simply put, in such a case, the particles are processed in two rounds, while below the limit, one round was
+enough. The same reason causes the performance anomalies at the larger number of input elements than 26 * 1024, where
+not even two rounds of processing are enough and up to three rounds of processing are performed by some of SM.
 
 
 Krok 1: optimalizace kódu
 =====================
 Došlo ke zrychlení?
 
+Yes, the performance acceleration was recorded. The results for the specific sizes of input are available in the file
+times.txt. On average, an acceleration of about 0.22% in comparison to the previous step (Step0), was recorded.
+
 Popište dva hlavní důvody:
 
 
 Porovnejte metriky s předchozím krokem:
+
+The individual metrics are almost the same as in the Step0 at the kernel calculate_gravitation_velocity. This is due
+to the fact, that this kernel included the majority part of the computation already in Step0. On the other hand, the
+kernel calculate_collision_velocity included only the minor part of whole computation and its major parts were
+unnecessary duplicate calculations. Now, in this step, the kernel calculate_velocity is enriched only by the calculation
+of the collision velocities, which consists of already calculated partial components, and the final calculation of the
+new velocities and positions from the kernel update_particles.
+
+Floating Point Operations Single Precision (flop_count_sp): 5.2848e+10 (Step0) - 3.8693e+10 (Step1) => 1.4155e+10
+    -> We can see, that the combination of the individual kernels into one kernel caused the reduction of the operation
+       number. This is because, in the Step0, some calculations have to be repeated due to the division of the
+       gravitation and collision velocities into several kernels, for example:
+        - the computation of the distance between the relevant particles
+        - the computation inverse distance between particles and their distances
+        - the addition of the partially computed velocities to the auxiliary velocities vector
+       We note, that the number of reduced operations is almost equal to the number of operations performed in the Step0
+       by the kernel calculate_collision_velocity (1.4156e+10). In this kernel was performed the most of the duplicate
+       calculations, which were already computed in the kernel calculate_gravitation_velocity before. This fact also
+       confirms the number of operations, which is almost identical in this step (3.8693e+10) as the number of
+       operations in the previous step performed by kernel calculate_gravitation_velocity (3.8692e+10). The slight
+       difference is due to the addition of operations from kernel update_particles (276480).
 
 
 Krok 2: sdílená paměť
 =====================
 Došlo ke zrychlení?
 
+Yes, the performance acceleration was recorded. The results for the specific sizes of input are available in the file
+times.txt. On average, an acceleration of about 0.40% in comparison to the previous step (Step1), was recorded.
+
 Zdůvodněte:
 
 
 Porovnejte metriky s předchozím krokem:
 
-
+The metrics in this step are significantly affected by using shared memory, in comparison to the previous step (Step1).
 
 Krok 5: analýza výkonu
 ======================

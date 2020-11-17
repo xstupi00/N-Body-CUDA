@@ -24,7 +24,7 @@ __global__ void calculate_velocity(t_particles p, int N, float dt)
     float pos_z = (i < N) ? p.pos_z[i] : 0.0f;
     float vel_x = (i < N) ? p.vel_x[i] : 0.0f;
     float vel_y = (i < N) ? p.vel_y[i] : 0.0f;
-    float vel_z = (i < N) ? p.vel_y[i] : 0.0f;
+    float vel_z = (i < N) ? p.vel_z[i] : 0.0f;
     float weight_i = (i < N) ? p.weight[i] : 0.0f;
 
     float tmp_vel_x = 0.0f;
