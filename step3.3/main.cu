@@ -18,10 +18,11 @@
 #include "nbody.h"
 #include "h5Helper.h"
 
-bool ispow2(int x)
-{
-    return !((~(~0U>>1)|x)&x -1) ;
-}
+/**
+ * Check whether the given numner is the power of number two or it is not.
+ * @param x - Number to check whether it is the power of two
+ */
+bool ispow2(int x) { return !((~(~0U>>1)|x)&x -1) ; }
 
 /**
  * Main rotine

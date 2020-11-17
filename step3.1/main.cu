@@ -194,9 +194,15 @@ int main(int argc, char **argv) {
     // Computes the size of the shared memory for reduction block
     size_t shm_mem = red_thr_blc * sizeof(float) * 4;
     // Calls reduction kernel to compute the Center of Mass
-    centerOfMass<<<reductionGrid, red_thr_blc, shm_mem>>>(
-        particles_gpu, &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
-    );
+    if (ispow2(N)) {
+        centerOfMass <true> <<<reductionGrid, red_thr_blc, shm_mem>>> (
+            particles_gpu, &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
+        );
+    } else {
+        centerOfMass <false> <<<reductionGrid, red_thr_blc, shm_mem>>> (
+                particles_gpu, &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
+        );
+    }
 
     cudaDeviceSynchronize();
 

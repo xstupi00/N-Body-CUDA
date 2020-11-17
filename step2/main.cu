@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         // Compute the size of the shared memory (for one grid block)
-        size_t shm_mem = thr_blc * sizeof(float) * 7;
+        const size_t shm_mem = thr_blc * sizeof(float) * 7;
         calculate_velocity<<<simulationGrid, thr_blc, shm_mem>>>(particles_gpu, N, dt);
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

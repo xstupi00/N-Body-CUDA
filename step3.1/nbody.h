@@ -46,6 +46,20 @@ typedef struct
  */
 __global__ void calculate_velocity(t_particles p, int N, float dt);
 
+/*
+ * CUDA device function to perform the WARP-synchronous programming within the reduction.
+ * @param pos_x     - positions x from particles data
+ * @param pos_y     - positions y from particles data
+ * @param pos_z     - positions z from particles data
+ * @param weights   - weights from particles data
+ * @param tid       - computed thread index
+ * @param blockSize - size of the block
+ */
+__device__ void warpReduce(
+        volatile float* pos_x, volatile float* pos_y, volatile float* pos_z,
+        volatile float* weights, unsigned int tid, unsigned int blockSize
+);
+
 /**
  * CUDA kernel to update particles
  * @param p       - particles
@@ -56,18 +70,86 @@ __global__ void calculate_velocity(t_particles p, int N, float dt);
  * @param lock    - pointer to a user-implemented lock
  * @param N       - Number of particles
  */
-__global__ void centerOfMass(t_particles p,
-                             float*      comX,
-                             float*      comY,
-                             float*      comZ,
-                             float*      comW,
-                             int*        lock,
-                             const int   N);
+template <bool nIsPow2>
+__global__ void centerOfMass(t_particles p, float* comX, float* comY, float* comZ, float* comW, int* lock, const int N)
+{
+    // Declares dynamic allocation of the shared memory
+    extern __shared__ float shared_data[];
+    unsigned int blockSize = blockDim.x;    // block size
+    // Obtains the pointers to the relevant parts of the shared memory for individual items of particles data
+    float* pos_x = shared_data;
+    float* pos_y = &shared_data[blockSize];
+    float* pos_z = &shared_data[blockSize * 2];
+    float* weights = &shared_data[blockSize * 3];
+
+    unsigned int tid = threadIdx.x;         // thread index
+    // Computes the global index of thread within the grid
+    unsigned int i = blockIdx.x * (blockSize * 2) + tid;
+    // Computes the reduction size of the whole program grid
+    unsigned int gridSize = blockSize * 2 * gridDim.x;
+
+    // Clears the individual items of particles data by each thread before the starting of reduction
+    pos_x[tid] = 0.0f;
+    pos_y[tid] = 0.0f;
+    pos_z[tid] = 0.0f;
+    weights[tid] = 0.0f;
+
+    // Each thread have to covered the relevant number of particles according to the program grid size
+    while (i < N) {
+        // Loads the weights of both particles to reduce the duplicate readings from the memory
+        float weight_i = p.weight[i];
+        float weight_j = p.weight[i + blockSize];
+        // Computes the addition over the relevant particles data according to the requirements of reduction
+        pos_x[tid] += (nIsPow2 || i + blockSize < N) ?
+                      (p.pos_x[i] * weight_i) + (p.pos_x[i + blockSize] * weight_j) : (p.pos_x[i] * weight_i);
+        pos_y[tid] += (nIsPow2 || i + blockSize < N) ?
+                      (p.pos_y[i] * weight_i) + (p.pos_y[i + blockSize] * weight_j) : (p.pos_y[i] * weight_i);
+        pos_z[tid] += (nIsPow2 || i + blockSize < N) ?
+                      (p.pos_z[i] * weight_i) + (p.pos_z[i + blockSize] * weight_j) : (p.pos_z[i] * weight_i);
+        weights[tid] += (nIsPow2 || i + blockSize < N) ? weight_i + weight_j : weight_i;
+        // Shift the index for covering the next particle according to the program grid size
+        i += gridSize;
+    }
+    // Synchronizes all threads within the block until they computed the own part of the reduction
+    __syncthreads();
+
+    // Iterates over the partial results of performed reduction
+    for(unsigned int stride = blockSize / 2; stride > 0; stride >>= 1) {
+        // Computes the addition over the relevant particles data according to the requirements of reduction
+        pos_x[tid] += (tid < stride) ? pos_x[tid + stride] : 0.0f;
+        pos_y[tid] += (tid < stride) ? pos_y[tid + stride] : 0.0f;
+        pos_z[tid] += (tid < stride) ? pos_z[tid + stride] : 0.0f;
+        weights[tid] += (tid < stride) ? weights[tid + stride] : 0.0f;
+        // Synchronizes all threads within the block until they computed the own part of the computation
+        __syncthreads();
+    }
+
+    // Thread with index 0 within the block writes the result of the reduction to the GPU memory after the computation
+    if (tid == 0) {
+        // Ensures the mutual exclusion for reducing the result to the global memory between the different blocks
+        while (0 != atomicCAS(lock, 0, 1)) {}
+        // Writes the individual results of the reduction to the final results into global memory GPU
+        *comX += pos_x[tid];
+        *comY += pos_y[tid];
+        *comZ += pos_z[tid];
+        *comW += weights[tid];
+        // Returns the lock to write to the shared global memory GPU
+        atomicExch(lock, 0);
+    }
+
+}// end of centerOfMass
+//----------------------------------------------------------------------------------------------------------------------
 
 /**
  * CPU implementation of the Center of Mass calculation
  * @param memDesc - Memory descriptor of particle data on CPU side
  */
 float4 centerOfMassCPU(MemDesc& memDesc);
+
+/**
+ * Check whether the given numner is the power of number two or it is not.
+ * @param x - Number to check whether it is the power of two
+ */
+bool ispow2(int x);
 
 #endif /* __NBODY_H__ */

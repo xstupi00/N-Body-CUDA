@@ -63,16 +63,19 @@ int main(int argc, char **argv) {
     printf("reduction threads/block: %d\n", red_thr_blc);
     printf("reduction blocks/grid: %lu\n", reductionGrid);
 
+    // Number of records to continuous writing of partial results
     const size_t recordsNum = (writeFreq > 0) ? (steps + writeFreq - 1) / writeFreq : 0;
     writeFreq = (writeFreq > 0) ? writeFreq : 0;
 
-
+    // CPU particles structures
     t_particles particles_cpu;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //                            FILL IN: CPU side memory allocation (step 0)                                        //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // The overall memory size of input particles
     size_t size = N * sizeof(float);
+    // Allocates page-locked memory on the host. Maps the allocation into the CUDA address space
     checkCudaErrors(cudaHostAlloc(&particles_cpu.pos_x, size, cudaHostAllocMapped));
     checkCudaErrors(cudaHostAlloc(&particles_cpu.pos_y, size, cudaHostAllocMapped));
     checkCudaErrors(cudaHostAlloc(&particles_cpu.pos_z, size, cudaHostAllocMapped));
@@ -118,8 +121,10 @@ int main(int argc, char **argv) {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                  FILL IN: GPU side memory allocation (step 0)                                  //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // GPU particles structure
     std::vector<t_particles> particles_gpu(2);
 
+    // Allocate memory on the device
     for (auto &p_gpu : particles_gpu) {
         checkCudaErrors(cudaMalloc(&p_gpu.pos_x, size));
         checkCudaErrors(cudaMalloc(&p_gpu.pos_y, size));
@@ -134,6 +139,7 @@ int main(int argc, char **argv) {
     //                                       FILL IN: memory transfers (step 0)                                       //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    // Copies particles data from host to device.
     checkCudaErrors(cudaMemcpy(particles_gpu[0].pos_x, particles_cpu.pos_x, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(particles_gpu[0].pos_y, particles_cpu.pos_y, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(particles_gpu[0].pos_z, particles_cpu.pos_z, size, cudaMemcpyHostToDevice));
@@ -143,30 +149,43 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaMemcpy(particles_gpu[0].weight, particles_cpu.weight, size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(particles_gpu[1].weight, particles_gpu[0].weight, size, cudaMemcpyDeviceToDevice));
 
+    // CPU Center of Mass structure - x, y, z, w
     float4* comCPU;
+    // GPU Center of Mass structure - x, y, z, w
     float4* comGPU;
+    // Lock to ensure the mutual exclusion for reducing the result to the global memory
     int* lock;
 
+    // Allocates page-locked memory on the host
     checkCudaErrors(cudaHostAlloc(&comCPU, sizeof(float4), cudaHostAllocMapped));
+    // Allocate memory on the device
     checkCudaErrors(cudaMalloc(&comGPU, sizeof(float4)));
     checkCudaErrors(cudaMalloc(&lock, sizeof(int)));
 
+    // Initializes or sets device memory to a zero value
     checkCudaErrors(cudaMemset(comCPU, 0, sizeof(float4)));
     checkCudaErrors(cudaMemset(lock, 0, sizeof(int)));
 
+    // Compute the size of the shared memory (for one grid block)
     size_t shm_mem_calc = thr_blc * sizeof(float) * 7;
+    // Computes the size of the shared memory for reduction block
     size_t shm_mem_mass = (red_thr_blc <= 32) ? 2 * red_thr_blc * sizeof(float) * 4 : red_thr_blc * sizeof(float) * 4;
 
+    // Create CUDA stream to perform effect concurrency
     cudaStream_t cm_stream, cp_stream, wp_stream;
-    checkCudaErrors(cudaStreamCreate(&cm_stream));
-    checkCudaErrors(cudaStreamCreate(&cp_stream));
-    checkCudaErrors(cudaStreamCreate(&wp_stream));
+    // Create an asynchronous stream.
+    checkCudaErrors(cudaStreamCreate(&cm_stream)); // Compute Mass stream
+    checkCudaErrors(cudaStreamCreate(&cp_stream)); // Compute Particles stream
+    checkCudaErrors(cudaStreamCreate(&wp_stream)); // Write particles stream
 
+    // Create CUDA events to synchronize individual CUDA stream during the computation
     cudaEvent_t cm_event, cp_event, wp_event;
-    checkCudaErrors(cudaEventCreate(&cm_event));
-    checkCudaErrors(cudaEventCreate(&cp_event));
-    checkCudaErrors(cudaEventCreate(&wp_event));
+    // Creates an event object.
+    checkCudaErrors(cudaEventCreate(&cm_event)); // Compute Mass event
+    checkCudaErrors(cudaEventCreate(&cp_event)); // Compute Particles event
+    checkCudaErrors(cudaEventCreate(&wp_event)); // Write particles event
 
+    // Auxiliary variable to register a record number at continuous writing to the file
     size_t records = 0;
 
     gettimeofday(&t1, 0);
@@ -176,10 +195,14 @@ int main(int argc, char **argv) {
         //                                       FILL IN: kernels invocation (step 0)                                 //
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+        // Run the kernel computing particles velocity in relevant Compute Particles stream
         calculate_velocity<<< simulationGrid, thr_blc, shm_mem_calc, cp_stream >>>
             (particles_gpu[s & 1ul], particles_gpu[(s + 1) & 1ul], N, dt);
+        // Records an event for finish the calculation of velocity
         checkCudaErrors(cudaEventRecord(cp_event, cp_stream));
 
+        // Copies particles data from device to host
+        // Copies the particles data computed in the previous iteration to CPU for writing to the file
         checkCudaErrors(cudaMemcpyAsync(
             particles_cpu.pos_x, particles_gpu[s & 1ul].pos_x, size, cudaMemcpyDeviceToHost, wp_stream
         ));
@@ -206,18 +229,22 @@ int main(int argc, char **argv) {
         //                                          FILL IN: synchronization  (step 4)                                //
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+        // Initializes or sets device memory to a value in the relevant Compute mass stream
         checkCudaErrors(cudaMemsetAsync(comGPU, 0, sizeof(float4), cm_stream));
+        // Run the kernel to compute Center of Mass in the relevant Compute Mass stream
         compute_gpu_center_of_mass(
                 particles_gpu[s & 1ul], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, &cm_stream
         );
+        // Copies Center of mass data from device to host in the relevant Compute Mass stream
         checkCudaErrors(cudaMemcpyAsync(comCPU, comGPU, sizeof(float4), cudaMemcpyDeviceToHost, cm_stream));
 
         if (writeFreq > 0 && (s % writeFreq == 0)) {
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////
             //                          FILL IN: synchronization and file access logic (step 4)                       //
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // Writing final values to the file
+            // Waits for Compute Mass stream tasks to complete.
             checkCudaErrors(cudaStreamSynchronize(cm_stream));
+            // Writing center of mass data to the file
             h5Helper.writeCom(
                 comCPU[0].x / comCPU[0].w,
                 comCPU[0].y / comCPU[0].w,
@@ -225,11 +252,15 @@ int main(int argc, char **argv) {
                 comCPU[0].w, records
             );
 
+            // Waits for Write particles stream tasks to complete.
             checkCudaErrors(cudaStreamSynchronize(wp_stream));
+            // Writing final values to the file
             h5Helper.writeParticleData(records++);
         }
 
 //        checkCudaErrors(cudaStreamSynchronize(cp_stream));
+        // Make a compute stream wait on an event.
+        // Before the next iteration have to be finished the calculation of velocity within relevant kernel
         checkCudaErrors(cudaStreamWaitEvent(wp_stream, cp_event, 0));
         checkCudaErrors(cudaStreamWaitEvent(cm_stream, cp_event, 0));
     }
@@ -240,11 +271,12 @@ int main(int argc, char **argv) {
 
     cudaDeviceSynchronize();
 
+    // Initializes or sets device memory to a zero value
     checkCudaErrors(cudaMemset(comGPU, 0, sizeof(float4)));
+    // Calls reduction kernel to compute the final Center of Mass results
     compute_gpu_center_of_mass(
             particles_gpu[steps & 1], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, &cm_stream
     );
-    checkCudaErrors(cudaMemcpy(comCPU, comGPU, sizeof(float4), cudaMemcpyDeviceToHost));
 
     gettimeofday(&t2, 0);
 
@@ -256,6 +288,7 @@ int main(int argc, char **argv) {
     //                             FILL IN: memory transfers for particle data (step 0)                               //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    // Copies particles data from device to host
     checkCudaErrors(cudaMemcpy(particles_cpu.pos_x, particles_gpu[steps & 1].pos_x, size, cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy(particles_cpu.pos_y, particles_gpu[steps & 1].pos_y, size, cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy(particles_cpu.pos_z, particles_gpu[steps & 1].pos_z, size, cudaMemcpyDeviceToHost));
@@ -263,6 +296,8 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaMemcpy(particles_cpu.vel_y, particles_gpu[steps & 1].vel_y, size, cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy(particles_cpu.vel_z, particles_gpu[steps & 1].vel_z, size, cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy(particles_cpu.weight, particles_gpu[steps & 1].weight, size, cudaMemcpyDeviceToHost));
+    // Copies Center of Mass data from device to host
+    checkCudaErrors(cudaMemcpy(comCPU, comGPU, sizeof(float4), cudaMemcpyDeviceToHost));
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //                        FILL IN: memory transfers for center-of-mass (step 3.1, step 3.2)                       //
@@ -292,10 +327,17 @@ int main(int argc, char **argv) {
     );
     h5Helper.writeParticleDataFinal();
 
+    // 	Destroys and cleans up an asynchronous streams
     checkCudaErrors(cudaStreamDestroy(cp_stream));
     checkCudaErrors(cudaStreamDestroy(wp_stream));
     checkCudaErrors(cudaStreamDestroy(cm_stream));
 
+    // Destroys an event objects
+    checkCudaErrors(cudaEventDestroy(cp_event));
+    checkCudaErrors(cudaEventDestroy(wp_event));
+    checkCudaErrors(cudaEventDestroy(cm_event));
+
+    // Free page-locked memory
     checkCudaErrors(cudaFreeHost(particles_cpu.pos_x));
     checkCudaErrors(cudaFreeHost(particles_cpu.pos_y));
     checkCudaErrors(cudaFreeHost(particles_cpu.pos_z));
@@ -305,6 +347,7 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaFreeHost(particles_cpu.weight));
     checkCudaErrors(cudaFreeHost(comCPU));
 
+    // Free memory on the device.
     for (auto p_gpu : particles_gpu) {
         checkCudaErrors(cudaFree(p_gpu.pos_x));
         checkCudaErrors(cudaFree(p_gpu.pos_y));

@@ -24,6 +24,7 @@ __global__ void calculate_velocity(t_particles p, int N, float dt)
     // Declares dynamic allocation of the shared memory
     extern __shared__ float shared_data[];
     int tx = threadIdx.x;   // thread index
+    int tx7 = tx * 7;       // temporary computation
     int bdx = blockDim.x;   // block dimensions
     // Computes the global index of thread within the grid
     int i = bdx * blockIdx.x + tx;
@@ -47,7 +48,6 @@ __global__ void calculate_velocity(t_particles p, int N, float dt)
     for (int tile = 0; tile < gridDim.x; tile++) {
         // Computes the index to load the shared particle, which will be used by the whole block
         int idx = tile * bdx + tx;
-        int tx7 = tx * 7;   // temporary computation
 
         // Each thread in the block loads one particle from the global memory to shared memory
         // The whole block will have stored the particles data required in the current iteration
