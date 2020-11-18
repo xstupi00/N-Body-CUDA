@@ -7,7 +7,7 @@ CFLAGS=-std=c++11 -lpapi -ansi-alias
 OPT=-O2 -Wall
 #REPORT=-qopt-report=5
 
-N=16384
+N=128
 DT=0.01f
 STEPS=500
 

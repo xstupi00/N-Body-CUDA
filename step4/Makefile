@@ -8,7 +8,7 @@ N_BIG=30720
 N_TEST=131072
 DT=0.01f
 STEPS=500
-THREADS_PER_BLOCK=256
+#THREADS_PER_BLOCK=256
 RED_THREADS=4096
 RED_THREADS_PER_BLOCK=128
 WRITE_INTESITY=20
@@ -70,7 +70,7 @@ profile:
 		--metrics gst_efficiency \
 		--metrics gst_throughput \
 		--metrics gld_throughput \
-		./nbody ${N} ${DT} 1 ${THREADS_PER_BLOCK} 0  ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT) $(OUTPUT)
+		./nbody ${N} ${DT} 1 ${T} 0  ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT) $(OUTPUT)
 
 profile_big:
 	nvprof \
