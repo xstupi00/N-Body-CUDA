@@ -57,7 +57,7 @@ __global__ void calculate_velocity(t_particles p, int N, float dt);
  */
 inline __device__ void warpReduce(
         volatile float* pos_x, volatile float* pos_y, volatile float* pos_z,
-        volatile float* weights, unsigned int tid, unsigned int blockSize
+        volatile float* weights, unsigned int tid
 ) {
     // Reading and writing to the shared memory in the SIMD takes place synchronously inside the warp.
     // We can cancel __syncthreads() and expand the last six iterations.
@@ -160,7 +160,7 @@ __global__ void centerOfMass(t_particles p, float* comX, float* comY, float* com
 
     // Perform the warp reduce when the number of operations are executed only by one warp
     if (tid < 32) { // expanded the last six iterations
-        warpReduce(pos_x, pos_y, pos_z, weights, tid, blockSize);
+        warpReduce(pos_x, pos_y, pos_z, weights, tid);
     }
 
     // Thread with index 0 within the block writes the result of the reduction to the GPU memory after the computation
