@@ -3,7 +3,7 @@
 # Login: xlogin00
 
 
-N=4096
+#N=4096
 N_BIG=30720
 N_TEST=131072
 DT=0.01f
@@ -13,7 +13,7 @@ RED_THREADS=4096
 RED_THREADS_PER_BLOCK=128
 WRITE_INTESITY=20
 
-INPUT=../sampledata/sampleInput.h5
+INPUT=../sampledata/${N}.h5
 INPUT_BIG=../sampledata/30720.h5
 INPUT_TEST=../sampledata/131072.h5
 OUTPUT=step4Output.h5
@@ -38,7 +38,7 @@ clean:
 	rm -f *.o nbody
 
 run:
-	./nbody ${N} ${DT} ${STEPS} ${THREADS_PER_BLOCK} ${WRITE_INTESITY} ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT) $(OUTPUT)
+	./nbody ${N} ${DT} ${STEPS} ${T} ${WRITE_INTESITY} ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT) $(OUTPUT)
 
 run_big:
 	./nbody ${N_BIG} ${DT} ${STEPS} ${THREADS_PER_BLOCK} ${WRITE_INTESITY} ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT_BIG) $(OUTPUT_BIG)
@@ -64,4 +64,36 @@ profile:
 	    --metrics gld_efficiency \
 	    --metrics gld_requested_throughput	\
 	    --metrics gst_requested_throughput \
-		./nbody ${N_TEST} ${DT} 1 ${THREADS_PER_BLOCK} 0  ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT_TEST) $(OUTPUT_TEST)
+		--metrics achieved_occupancy \
+		--metrics shared_efficiency \
+		--metrics gld_efficiency \
+		--metrics gst_efficiency \
+		--metrics gst_throughput \
+		--metrics gld_throughput \
+		./nbody ${N} ${DT} 1 ${THREADS_PER_BLOCK} 0  ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT) $(OUTPUT)
+
+profile_big:
+	nvprof \
+		--devices 0 \
+		--metrics flops_sp \
+		--metrics flops_dp \
+		--metrics flops_sp_add \
+		--metrics flops_sp_mul \
+		--metrics flops_sp_fma \
+		--metrics flops_sp_special \
+		--metrics flop_sp_efficiency \
+		--metrics sm_efficiency \
+		--metrics alu_fu_utilization \
+		--metrics gld_transactions \
+		--metrics l1_cache_global_hit_rate \
+		--metrics shared_load_transactions \
+	    --metrics gld_efficiency \
+	    --metrics gld_requested_throughput	\
+	    --metrics gst_requested_throughput \
+		--metrics achieved_occupancy \
+		--metrics shared_efficiency \
+		--metrics gld_efficiency \
+	    --metrics gst_efficiency \
+		--metrics gst_throughput \
+		--metrics gld_throughput \
+		./nbody ${N_BIG} ${DT} 1 ${THREADS_PER_BLOCK} 0  ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT_BIG) $(OUTPUT_BIG)

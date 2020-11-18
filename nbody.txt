@@ -6,36 +6,36 @@ Login: xstupi00
 Krok 0: základní implementace (STEPS=500, THREADS_PER_BLOCK=1024)
 =============================
 Velikost dat    	čas [s]
- 1 * 1024 			 0.88174
- 2 * 1024 			 1.74726
- 3 * 1024 			 2.60385
- 4 * 1024 			 3.47223
- 5 * 1024 			 4.33136
- 6 * 1024 			 5.18821
- 7 * 1024 			 6.06037
- 8 * 1024 			 6.92948
- 9 * 1024 			 7.82831
-10 * 1024 			 8.64371
-11 * 1024 			 9.52404
-12 * 1024 			 10.3747
-13 * 1024 			 11.2621
-14 * 1024 			 23.6263
-15 * 1024 			 25.3215
-16 * 1024 			 27.1330
-17 * 1024 			 28.8762
-18 * 1024 			 30.5907
-19 * 1024 			 32.3282
-20 * 1024 			 34.1332
-21 * 1024 			 35.8376
-22 * 1024 			 37.5434
-23 * 1024 			 39.6028
-24 * 1024 			 41.4163
-25 * 1024 			 43.1235
-26 * 1024 			 44.8353
-27 * 1024 			 68.3380
-28 * 1024 			 70.8140
-29 * 1024 			 73.5257
-30 * 1024 			 76.1474
+ 1 * 1024 			 0.815792
+ 2 * 1024 			 1.61373
+ 3 * 1024 			 2.40606
+ 4 * 1024 			 3.21471
+ 5 * 1024 			 4.00240
+ 6 * 1024 			 4.79797
+ 7 * 1024 			 5.60371
+ 8 * 1024 			 6.39995
+ 9 * 1024 			 7.25784
+10 * 1024 			 7.99933
+11 * 1024 			 8.80105
+12 * 1024 			 9.59180
+13 * 1024 			 10.4035
+14 * 1024 			 21.8723
+15 * 1024 			 23.4524
+16 * 1024 			 25.1347
+17 * 1024 			 26.7706
+18 * 1024 			 28.2069
+19 * 1024 			 30.0450
+20 * 1024 			 31.6136
+21 * 1024 			 33.3124
+22 * 1024 			 34.7625
+23 * 1024 			 36.6033
+24 * 1024 			 38.2630
+25 * 1024 			 39.9650
+26 * 1024 			 41.5480
+27 * 1024 			 63.2957
+28 * 1024 			 65.6216
+29 * 1024 			 68.0706
+30 * 1024 			 70.5210
 
 Vyskytla se nějaká anomálie v datech
 Pokud ano, vysvětlete:
@@ -62,9 +62,26 @@ Krok 1: optimalizace kódu
 Došlo ke zrychlení?
 
 Yes, the performance acceleration was recorded. The results for the specific sizes of input are available in the file
-times.txt. On average, an acceleration of about 0.22% in comparison to the previous step (Step0), was recorded.
+times.txt. On average, an acceleration of about 0.325% in comparison to the previous step (Step0), was recorded.
 
 Popište dva hlavní důvody:
+
+The greatest impact on the increase in performance of the computation has a decrease in the number of global load
+transactions. In the Step0, were performed the duplicated accesses to the global memory during the loadings of the
+required data to the individual computations in the relevant kernels. Primarily, the kernel calculate_collision_velocity
+repeatedly loads the data from global memory, which also the kernel calculate_gravitation_velocity loads before it.
+Therefore, significantly reducing the number of accesses to global memory significantly affects the overall performance
+of the computation.
+
+The second greatest impact on the increase in the performance of the computation has a decrease in the number of FP
+operations. The elimination of the duplicate calculations, primarily in the kernel calculate_collision_velocity, ensured
+a significant reduction of FP operations number in the whole program. The optimization of expressions for the
+calculation of relationships between particles also contributed to the reduction of the number of FP operations.
+
+The less significant effect on performance improvement has a decrease in the overhead connected with the invoking the
+individual kernels. In the first step (Step0) were invoking gradually three kernels and it required certainly overheads.
+Now, we invoke only one computation kernel, which ensures the whole computation logic and therefore most of such
+overheads have been eliminated
 
 
 Porovnejte metriky s předchozím krokem:
@@ -72,9 +89,22 @@ Porovnejte metriky s předchozím krokem:
 The individual metrics are almost the same as in the Step0 at the kernel calculate_gravitation_velocity. This is due
 to the fact, that this kernel included the majority part of the computation already in Step0. On the other hand, the
 kernel calculate_collision_velocity included only the minor part of whole computation and its major parts were
-unnecessary duplicate calculations. Now, in this step, the kernel calculate_velocity is enriched only by the calculation
-of the collision velocities, which consists of already calculated partial components, and the final calculation of the
-new velocities and positions from the kernel update_particles.
+unnecessary duplicate calculations and repeatedly loadings from the global memory. Now, in this step, the kernel
+calculate_velocity is enriched only by the calculation of the collision velocities, which consists of already calculated
+partial components, and the final calculation of the new velocities and positions from the kernel update_particles.
+
+Global Load Transactions (gld_transactions): 206 462 400 (Step0) - 117 971 520 (Step1) => 88 490 880
+    -> How we said above, by the combination of three kernels into only one kernel, we reduce the number of transactions
+       from global memory. The main reason for this statement is this, that kernel calculate_collision_velocity
+       performed the repeated loadings from the global memory in the Step0 (particles loading). In this step, we also
+       avoided the temporary velocity vector, which was also accessed within the global memory.
+    -> We can observe, that the number of global load transactions in this step is only slightly larger than the number
+       of such transactions in the previous step in the kernel calculate_gravitation_velocity:
+        -- Step0 (calculate_gravitation_velocity) 117 967 680 => Step1 (calculate_velocity) 117 971 520
+       The overall number of these transactions was decreased about the number, which was performed within the kernel
+       calculate_collision_velocity in the Step0, which confirms our claims.
+        -- Step0 (calculate_collision_velocity) 88 483 200 => Step0 - Step1 difference 88 490 880
+       We see that this kernel performed really unnecessary repetitive transactions from global memory.
 
 Floating Point Operations Single Precision (flop_count_sp): 5.2848e+10 (Step0) - 3.8693e+10 (Step1) => 1.4155e+10
     -> We can see, that the combination of the individual kernels into one kernel caused the reduction of the operation
@@ -96,23 +126,79 @@ Krok 2: sdílená paměť
 Došlo ke zrychlení?
 
 Yes, the performance acceleration was recorded. The results for the specific sizes of input are available in the file
-times.txt. On average, an acceleration of about 0.40% in comparison to the previous step (Step1), was recorded.
+times.txt. On average, an acceleration of about 0.33% in comparison to the previous step (Step1), was recorded.
 
 Zdůvodněte:
 
+The performance improvement was primarily achieved due to a significant reduction in the number of accesses to global
+memory. These accesses were replaced by using shared memory, which provides significantly faster access compared to
+global memory. Threads access to the global memory only when loading the relevant data to shared memory. Further, the
+principal requirement of the access to global memory is meet, and that neighbouring threads access to the adjacent
+locations. This requirement at access to the global memory was not met at the previous step (Step1), since the threads
+in the computation loop require accessing to the same particles data (j-th particle). Thanks to more frequently
+loadings from the shared memory, the individual SM processors did not have to wait for the data loads, which caused
+less downtime in the calculation.
+
+In summary, the primary reasons which affected the performance are:
+    - decreasing the number of global load transactions
+    - increasing the number of shared load transactions
+    - decreasing the number of stall memory dependencies
 
 Porovnejte metriky s předchozím krokem:
 
 The metrics in this step are significantly affected by using shared memory, in comparison to the previous step (Step1).
 
+Issue Stall Reasons (Data Request) (stall_memory_dependency): 12.76% (Step1) => 0.01% (Step2)
+    ->
+
+Shared Load Transactions (shared_load_transactions): 0 (Step1) => 117 964 800 (Step1)
+    -> Since in the Step1 the shared memory was not used, the number of shared load transactions was equal to zero. In
+       this step with the using of the shared memory was noticed the increase of this metric to the value 117 964 800.
+       The interesting observation is, that the number of these shared load transactions is almost equal to the number
+       of global load transactions in the previous step, where the shared memory was not used.
+        -- Global Load Transactions (Step1) = 117 971 520 => Shared Load Transactions (Step2) = 117 964 800
+       Thus, we can see, that the loadings from the global memory was almost completely replaced by the loadings from
+       the shared memory, in this step.
+
+Global Load Transactions (gld_transactions): 117 971 520 (Step1) => 216 960 (Step2)
+    -> We drastically decreased the number of global load transactions by usage the shared memory. In the previous
+       step, we accessed to the global memory quite often and repeatedly in a loop, due to the loading the required
+       particles data. Now, we access to the global memory only when we load the required data from the global memory
+       to the shared memory, and subsequently, we work only with these loaded data.
+
+Global Memory Load Efficiency (gld_efficiency): 12.52% (Step1) => 100.00% (Step2)
+    -> In the Step1, the individual threads within the block in the computation loop together accessed to the j-th
+       particle stored in the global memory. Such an approach was therefore not coalesced and the basic requirement
+       for the access to the memory did not apply. The neighbouring threads did not access to the adjacent locations,
+       but instead to a common location.
+    -> In the Step2, with the using of shared memory, this shortcoming has been remedied. The individual threads within
+       one block access the global memory only when load the relevant particle to the shared memory. And since it is
+       true that each thread in a block loads own element depending on the value of thread index, the requirements are
+       met. The neighbouring threads access to the adjacent locations, and therefore we have achieved a significant
+       increase in this metric.
+
+Requested Global Load Throughput (gld_requested_throughput): 4.6226GB/s (Step1) => 387.20MB/s (Step2)
+    -> At the previous step (Step1), the threads accessed to the global memory very frequently in the inner loop of
+       computation, due to obtaining the data needed to calculate each iteration. For this reason, was the global load
+       throughout very high. In comparison, at this step, the threads access to the global memory only when loading
+       relevant data to the shared memory. Therefore, at the requested global load throughput was noticed the
+       significant decrease, since the frequency of accessing to the global memory is also significantly low.
+
+
 Krok 5: analýza výkonu
 ======================
-N        čas CPU [s]    čas GPU [s]    propustnost paměti [MB/s]    výkon [MFLOPS]    zrychlení [-]
-1024     ...            ...            ...                          ...               ...
-2048     ...            ...            ...                          ...               ...
-4096     ...            ...            ...                          ...               ...
-...      ...            ...            ...                          ...               ...
-131072   ...            ...            ...                          ...               ...
+N        čas CPU [s]    čas GPU [s]    propustnost paměti [MB/s]    výkon [MFLOPS]    zrychlení [-]     thr_blc
+128       0.463157       0.085749         ...                          ...               ...              32
+256       1.82851        0.123418         ...                          ...               ...              256
+512       7.29554        0.217018         ...                          ...               ...              512
+1024      29.1873        0.402592         ...                          ...               ...              1024
+2048      116.772        0.777541         ...                          ...               ...              1024
+4096      467.235        1.535198         ...                          ...               ...              1024
+8192      1869.88        3.053371         ...                          ...               ...              1024
+16384       ...          6.639555         ...                          ...               ...              256
+32768       ...          29.237558        ...                          ...               ...              512
+65536       ...          117.196181       ...                          ...               ...              512
+131072      ...          411.074028       ...                          ...               ...              512
 
 Od jakého počtu částic se vyplatí počítat na grafické kartě?
 

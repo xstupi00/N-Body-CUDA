@@ -61,6 +61,9 @@ profile:
 		--metrics achieved_occupancy \
 		--metrics shared_efficiency \
 		--metrics gld_efficiency \
+		--metrics gst_efficiency \
+		--metrics gst_throughput \
+		--metrics gld_throughput \
 		./nbody ${N} ${DT} 1 ${THREADS_PER_BLOCK} 0  ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT) $(OUTPUT)
 
 profile_big:
@@ -84,4 +87,8 @@ profile_big:
 		--metrics achieved_occupancy \
 		--metrics shared_efficiency \
 		--metrics gld_efficiency \
+	    --metrics gst_efficiency \
+		--metrics gst_throughput \
+		--metrics gld_throughput \
+		--metrics stall_memory_dependency \
 		./nbody ${N_BIG} ${DT} 1 ${THREADS_PER_BLOCK} 0  ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT_BIG) $(OUTPUT_BIG)

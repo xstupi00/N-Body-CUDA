@@ -62,65 +62,35 @@ inline __device__ void warpReduce(
     // Reading and writing to the shared memory in the SIMD takes place synchronously inside the warp.
     // We can cancel __syncthreads() and expand the last six iterations.
 
-    // 2 ^ 6 elements to reduce
-    if (blockSize >= 64) {
-        pos_x[tid] += pos_x[tid + 32];
-        pos_y[tid] += pos_y[tid + 32];
-        pos_z[tid] += pos_z[tid + 32];
-        weights[tid] += weights[tid + 32];
-    }
-    // Synchronize threads in a warp and provide a memory fence
-    __syncwarp();
+    pos_x[tid] += pos_x[tid + 32];
+    pos_y[tid] += pos_y[tid + 32];
+    pos_z[tid] += pos_z[tid + 32];
+    weights[tid] += weights[tid + 32];
 
-    // 2 ^ 5 elements to reduce
-    if (blockSize >= 32) {
-        pos_x[tid] += pos_x[tid + 16];
-        pos_y[tid] += pos_y[tid + 16];
-        pos_z[tid] += pos_z[tid + 16];
-        weights[tid] += weights[tid + 16];
-    }
-    // Synchronize threads in a warp and provide a memory fence
-    __syncwarp();
+    pos_x[tid] += pos_x[tid + 16];
+    pos_y[tid] += pos_y[tid + 16];
+    pos_z[tid] += pos_z[tid + 16];
+    weights[tid] += weights[tid + 16];
 
-    // 2 ^ 4 elements to reduce
-    if (blockSize >= 16) {
-        pos_x[tid] += pos_x[tid + 8];
-        pos_y[tid] += pos_y[tid + 8];
-        pos_z[tid] += pos_z[tid + 8];
-        weights[tid] += weights[tid + 8];
-    }
-    // Synchronize threads in a warp and provide a memory fence
-    __syncwarp();
+    pos_x[tid] += pos_x[tid + 8];
+    pos_y[tid] += pos_y[tid + 8];
+    pos_z[tid] += pos_z[tid + 8];
+    weights[tid] += weights[tid + 8];
 
-    // 2 ^ 3 elements to reduce
-    if (blockSize >= 8) {
-        pos_x[tid] += pos_x[tid + 4];
-        pos_y[tid] += pos_y[tid + 4];
-        pos_z[tid] += pos_z[tid + 4];
-        weights[tid] += weights[tid + 4];
-    }
-    // Synchronize threads in a warp and provide a memory fence
-    __syncwarp();
+    pos_x[tid] += pos_x[tid + 4];
+    pos_y[tid] += pos_y[tid + 4];
+    pos_z[tid] += pos_z[tid + 4];
+    weights[tid] += weights[tid + 4];
 
-    // 2 ^ 2 elements to reduce
-    if (blockSize >= 4) {
-        pos_x[tid] += pos_x[tid + 2];
-        pos_y[tid] += pos_y[tid + 2];
-        pos_z[tid] += pos_z[tid + 2];
-        weights[tid] += weights[tid + 2];
-    }
-    // Synchronize threads in a warp and provide a memory fence
-    __syncwarp();
+    pos_x[tid] += pos_x[tid + 2];
+    pos_y[tid] += pos_y[tid + 2];
+    pos_z[tid] += pos_z[tid + 2];
+    weights[tid] += weights[tid + 2];
 
-    // 2 ^ 1 elements to reduce
-    if (blockSize >= 2) {
-        pos_x[tid] += pos_x[tid + 1];
-        pos_y[tid] += pos_y[tid + 1];
-        pos_z[tid] += pos_z[tid + 1];
-        weights[tid] += weights[tid + 1];
-    }
-    // Synchronize threads in a warp and provide a memory fence
-    __syncwarp();
+    pos_x[tid] += pos_x[tid + 1];
+    pos_y[tid] += pos_y[tid + 1];
+    pos_z[tid] += pos_z[tid + 1];
+    weights[tid] += weights[tid + 1];
 
 }
 

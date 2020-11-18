@@ -7,14 +7,14 @@ CFLAGS=-std=c++11 -lpapi -ansi-alias
 OPT=-O2 -Wall
 #REPORT=-qopt-report=5
 
-N=1000
-DT=0.001f
-STEPS=1000
+N=16384
+DT=0.01f
+STEPS=500
 
 PARAMS=-DN=$(N) -DDT=$(DT) -DSTEPS=$(STEPS)
 
-INPUT=../input.dat
-OUTPUT=../step0.dat
+INPUT=inputs/${N}.dat
+OUTPUT=outputs/${N}.dat
 
 PAPI_EVENTS=PAPI_FP_OPS|PAPI_SP_OPS
 
@@ -29,4 +29,4 @@ clean:
 	rm -f *.o nbody gen
 
 run:
-	PAPI_EVENTS='$(PAPI_EVENTS)' ./nbody $(INPUT) $(OUTPUT)
+	./nbody $(INPUT) $(OUTPUT)

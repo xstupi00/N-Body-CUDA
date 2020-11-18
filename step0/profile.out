@@ -1,29 +1,29 @@
-==355== NVPROF is profiling process 355, command: ./nbody 30720 0.01f 1 1024 0 4096 128 ../sampledata/30720.h5 stepBOutput.h5
-==355== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==25563== NVPROF is profiling process 25563, command: ./nbody 30720 0.01f 1 1024 0 4096 128 ../sampledata/30720.h5 stepBOutput.h5
+==25563== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
 Replaying kernel "calculate_gravitation_velocity(t_particles, t_velocities, int, float)" (done)
 Replaying kernel "calculate_collision_velocity(t_particles, t_velocities, int, float)" (done)
 Replaying kernel "update_particle(t_particles, t_velocities, int, float)" (done)
-Time: 31.897741 sl events
+Time: 32.398555 sl events
 Center of mass on CPU:
 49.9385, 50.1417, 50.1146, 3.85725e+13
 Center of mass on GPU:
-5.60519e-45, 2.10195e-44, -3.68935e+19, -1.03846e+34
-==355== Profiling application: ./nbody 30720 0.01f 1 1024 0 4096 128 ../sampledata/30720.h5 stepBOutput.h5
-==355== Profiling result:
-==355== Metric result:
+2.8026e-45, 0, 0, 0
+==25563== Profiling application: ./nbody 30720 0.01f 1 1024 0 4096 128 ../sampledata/30720.h5 stepBOutput.h5
+==25563== Profiling result:
+==25563== Metric result:
 Invocations                               Metric Name                                    Metric Description         Min         Max         Avg
 Device "Tesla K20m (0)"
     Kernel: calculate_collision_velocity(t_particles, t_velocities, int, float)
-          1                        flop_sp_efficiency                          FLOP Efficiency(Peak Single)       6.55%       6.55%       6.55%
-          1                             sm_efficiency                               Multiprocessor Activity      77.17%      77.17%      77.17%
+          1                        flop_sp_efficiency                          FLOP Efficiency(Peak Single)       6.61%       6.61%       6.61%
+          1                             sm_efficiency                               Multiprocessor Activity      77.54%      77.54%      77.54%
           1                        alu_fu_utilization                  Arithmetic Function Unit Utilization     Mid (4)     Mid (4)     Mid (4)
           1                          gld_transactions                              Global Load Transactions    88483200    88483200    88483200
           1                  l1_cache_global_hit_rate                                    L1 Global Hit Rate       0.00%       0.00%       0.00%
           1                  shared_load_transactions                              Shared Load Transactions           0           0           0
           1                            gld_efficiency                         Global Memory Load Efficiency      12.54%      12.54%      12.54%
-          1                  gld_requested_throughput                      Requested Global Load Throughput  5.3910GB/s  5.3910GB/s  5.3910GB/s
-          1                  gst_requested_throughput                     Requested Global Store Throughput  5.7305MB/s  5.7305MB/s  5.7305MB/s
-          1                        achieved_occupancy                                    Achieved Occupancy    0.499644    0.499644    0.499644
+          1                  gld_requested_throughput                      Requested Global Load Throughput  5.4388GB/s  5.4388GB/s  5.4388GB/s
+          1                  gst_requested_throughput                     Requested Global Store Throughput  5.7813MB/s  5.7813MB/s  5.7813MB/s
+          1                        achieved_occupancy                                    Achieved Occupancy    0.499634    0.499634    0.499634
           1                         shared_efficiency                              Shared Memory Efficiency       0.00%       0.00%       0.00%
           1                             flop_count_sp           Floating Point Operations(Single Precision)  1.4156e+10  1.4156e+10  1.4156e+10
           1                         flop_count_sp_add       Floating Point Operations(Single Precision Add)  3774935040  3774935040  3774935040
@@ -32,16 +32,16 @@ Device "Tesla K20m (0)"
           1                             flop_count_dp           Floating Point Operations(Double Precision)           0           0           0
           1                     flop_count_sp_special   Floating Point Operations(Single Precision Special)   943687680   943687680   943687680
     Kernel: calculate_gravitation_velocity(t_particles, t_velocities, int, float)
-          1                        flop_sp_efficiency                          FLOP Efficiency(Peak Single)      11.97%      11.97%      11.97%
-          1                             sm_efficiency                               Multiprocessor Activity      77.13%      77.13%      77.13%
-          1                        alu_fu_utilization                  Arithmetic Function Unit Utilization     Mid (5)     Mid (5)     Mid (5)
+          1                        flop_sp_efficiency                          FLOP Efficiency(Peak Single)      13.73%      13.73%      13.73%
+          1                             sm_efficiency                               Multiprocessor Activity      77.32%      77.32%      77.32%
+          1                        alu_fu_utilization                  Arithmetic Function Unit Utilization     Mid (6)     Mid (6)     Mid (6)
           1                          gld_transactions                              Global Load Transactions   117967680   117967680   117967680
           1                  l1_cache_global_hit_rate                                    L1 Global Hit Rate       0.00%       0.00%       0.00%
           1                  shared_load_transactions                              Shared Load Transactions           0           0           0
           1                            gld_efficiency                         Global Memory Load Efficiency      12.51%      12.51%      12.51%
-          1                  gld_requested_throughput                      Requested Global Load Throughput  4.7927GB/s  4.7927GB/s  4.7927GB/s
-          1                  gst_requested_throughput                     Requested Global Store Throughput  3.8312MB/s  3.8312MB/s  3.8312MB/s
-          1                        achieved_occupancy                                    Achieved Occupancy    0.499530    0.499530    0.499530
+          1                  gld_requested_throughput                      Requested Global Load Throughput  5.4982GB/s  5.4982GB/s  5.4982GB/s
+          1                  gst_requested_throughput                     Requested Global Store Throughput  4.3951MB/s  4.3951MB/s  4.3951MB/s
+          1                        achieved_occupancy                                    Achieved Occupancy    0.499576    0.499576    0.499576
           1                         shared_efficiency                              Shared Memory Efficiency       0.00%       0.00%       0.00%
           1                             flop_count_sp           Floating Point Operations(Single Precision)  3.8692e+10  3.8692e+10  3.8692e+10
           1                         flop_count_sp_add       Floating Point Operations(Single Precision Add)  6605998080  6605998080  6605998080
@@ -50,16 +50,16 @@ Device "Tesla K20m (0)"
           1                             flop_count_dp           Floating Point Operations(Double Precision)           0           0           0
           1                     flop_count_sp_special   Floating Point Operations(Single Precision Special)  1887406080  1887406080  1887406080
     Kernel: update_particle(t_particles, t_velocities, int, float)
-          1                        flop_sp_efficiency                          FLOP Efficiency(Peak Single)       0.45%       0.45%       0.45%
-          1                             sm_efficiency                               Multiprocessor Activity      55.71%      55.71%      55.71%
+          1                        flop_sp_efficiency                          FLOP Efficiency(Peak Single)       0.44%       0.44%       0.44%
+          1                             sm_efficiency                               Multiprocessor Activity      55.29%      55.29%      55.29%
           1                        alu_fu_utilization                  Arithmetic Function Unit Utilization     Low (2)     Low (2)     Low (2)
           1                          gld_transactions                              Global Load Transactions       11520       11520       11520
           1                  l1_cache_global_hit_rate                                    L1 Global Hit Rate       0.00%       0.00%       0.00%
           1                  shared_load_transactions                              Shared Load Transactions           0           0           0
           1                            gld_efficiency                         Global Memory Load Efficiency     100.00%     100.00%     100.00%
-          1                  gld_requested_throughput                      Requested Global Load Throughput  87.527GB/s  87.527GB/s  87.527GB/s
-          1                  gst_requested_throughput                     Requested Global Store Throughput  43.763GB/s  43.763GB/s  43.763GB/s
-          1                        achieved_occupancy                                    Achieved Occupancy    0.844156    0.844156    0.844156
+          1                  gld_requested_throughput                      Requested Global Load Throughput  87.823GB/s  87.823GB/s  87.823GB/s
+          1                  gst_requested_throughput                     Requested Global Store Throughput  43.912GB/s  43.912GB/s  43.912GB/s
+          1                        achieved_occupancy                                    Achieved Occupancy    0.848247    0.848247    0.848247
           1                         shared_efficiency                              Shared Memory Efficiency       0.00%       0.00%       0.00%
           1                             flop_count_sp           Floating Point Operations(Single Precision)      276480      276480      276480
           1                         flop_count_sp_add       Floating Point Operations(Single Precision Add)       92160       92160       92160
@@ -67,4 +67,4 @@ Device "Tesla K20m (0)"
           1                         flop_count_sp_fma       Floating Point Operations(Single Precision FMA)       92160       92160       92160
           1                             flop_count_dp           Floating Point Operations(Double Precision)           0           0           0
           1                     flop_count_sp_special   Floating Point Operations(Single Precision Special)           0           0           0
-(py-test-env) [dd-20-28-245@cn198.anselm step0]$
+[dd-20-28-245@cn203.anselm step0]$

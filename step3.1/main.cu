@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
         );
     } else {
         centerOfMass <false> <<<reductionGrid, red_thr_blc, shm_mem>>> (
-                particles_gpu, &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
+            particles_gpu, &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
         );
     }
 
