@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
     // Compute the size of the shared memory (for one grid block)
     size_t shm_mem_calc = thr_blc * sizeof(float) * 7;
     // Computes the size of the shared memory for reduction block
-    size_t shm_mem_mass = (red_thr_blc <= 32) ? 2 * red_thr_blc * sizeof(float) * 4 : red_thr_blc * sizeof(float) * 4;
+    size_t shm_mem_mass = (red_thr_blc / 32) * sizeof(float) * 4;
 
     // Create CUDA stream to perform effect concurrency
     cudaStream_t cm_stream, cp_stream, wp_stream;
@@ -231,9 +231,9 @@ int main(int argc, char **argv) {
 
         // Initializes or sets device memory to a value in the relevant Compute mass stream
         checkCudaErrors(cudaMemsetAsync(comGPU, 0, sizeof(float4), cm_stream));
-        // Run the kernel to compute Center of Mass in the relevant Compute Mass stream
-        compute_gpu_center_of_mass(
-                particles_gpu[s & 1ul], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, &cm_stream
+        // Calls reduction kernel to compute the Center of Mass
+        centerOfMass <<< reductionGrid, red_thr_blc, shm_mem_mass, cm_stream >>> (
+            particles_gpu[s & 1ul], &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
         );
         // Copies Center of mass data from device to host in the relevant Compute Mass stream
         checkCudaErrors(cudaMemcpyAsync(comCPU, comGPU, sizeof(float4), cudaMemcpyDeviceToHost, cm_stream));
@@ -274,8 +274,8 @@ int main(int argc, char **argv) {
     // Initializes or sets device memory to a zero value
     checkCudaErrors(cudaMemset(comGPU, 0, sizeof(float4)));
     // Calls reduction kernel to compute the final Center of Mass results
-    compute_gpu_center_of_mass(
-            particles_gpu[steps & 1], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, &cm_stream
+    centerOfMass <<< reductionGrid, red_thr_blc, shm_mem_mass >>> (
+            particles_gpu[steps & 1], &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
     );
 
     gettimeofday(&t2, 0);

@@ -12,11 +12,6 @@
 #include <cfloat>
 #include "nbody.h"
 
-/**
- * Check whether the given numner is the power of number two or it is not.
- * @param x - Number to check whether it is the power of two
- */
-bool ispow2(int x) { return !((~(~0U>>1)|x)&x -1) ; }
 
 /**
  * CUDA kernel to calculate gravitation and collision velocity and update particles.
@@ -156,4 +151,124 @@ __host__ float4 centerOfMassCPU(MemDesc& memDesc)
   }
   return com;
 }// enf of centerOfMassCPU
+//----------------------------------------------------------------------------------------------------------------------
+
+
+/**
+ * CUDA kernel function to perform shuffle based warp reduction
+ * @param partial_sums  - partial sums within individual threads in the blocks
+ */
+__inline__ __device__
+float4 warp_reduce_sum(float4 partial_sums) {
+    // Compute the reduction tree by using the shuffle down
+    // All threads will be shifting values even though they are not needed in the reduction
+    for (int stride = WARP_SIZE / 2; stride > 0; stride /= 2) { // stride => 16, 8, 4, 2, 1
+        partial_sums.x += __shfl_down_sync(0xffffffff, partial_sums.x, stride);
+        partial_sums.y += __shfl_down_sync(0xffffffff, partial_sums.y, stride);
+        partial_sums.z += __shfl_down_sync(0xffffffff, partial_sums.z, stride);
+        partial_sums.w += __shfl_down_sync(0xffffffff, partial_sums.w, stride);
+    }
+    // After executing the three reduction thread 0 has the total reduced value in its relevant partial sums
+    return partial_sums;
+}// end of warp_reduce_sum
+//---------------------------------------------------------------------------------------------------------------------
+
+
+/**
+ * CUDA kernel function to perform reduction across the entire block
+ * @param partial_sums  - partial sums within individual threads in the blocks
+ */
+__inline__ __device__
+float4 block_reduce_sum(float4 partial_sums)
+{
+    // Declares dynamic allocation of the shared memory
+    extern __shared__ float shared_data[];
+    // Computes the number of partial sums calculated by individual warps within one block
+    int partial_sum_count = blockDim.x / WARP_SIZE;
+    // Obtains the pointers to the relevant parts of the shared memory for individual items of particles data
+    float* pos_x = shared_data;
+    float* pos_y = &shared_data[partial_sum_count];
+    float* pos_z = &shared_data[partial_sum_count * 2];
+    float* weights = &shared_data[partial_sum_count * 3];
+
+    // Compute the thread's index within its warp - from 0 to 31
+    int lane = threadIdx.x % WARP_SIZE;
+    // Compute the warp's index within whole block
+    int wid = threadIdx.x / WARP_SIZE;
+
+    // Each warp performs partial reduction
+    partial_sums = warp_reduce_sum(partial_sums);
+
+    // Write reduce value by each warp to shared memory
+    if (lane == 0) {    // 0.thread in the each warp
+        pos_x[wid] = partial_sums.x;    // position x
+        pos_y[wid] = partial_sums.y;    // position y
+        pos_z[wid] = partial_sums.z;    // position z
+        weights[wid] = partial_sums.w;  // weight
+    }
+    // Synchronizes all threads within the block until they computed the own part of the computation
+    __syncthreads();
+
+    // Read from shared memory only if that warp existed
+    partial_sums.x = (threadIdx.x < blockDim.x / WARP_SIZE) ? pos_x[lane] : 0.0f;
+    partial_sums.y = (threadIdx.x < blockDim.x / WARP_SIZE) ? pos_y[lane] : 0.0f;
+    partial_sums.z = (threadIdx.x < blockDim.x / WARP_SIZE) ? pos_z[lane] : 0.0f;
+    partial_sums.w = (threadIdx.x < blockDim.x / WARP_SIZE) ? weights[lane] : 0.0f;
+
+    // Final reduce within the first warp - warp with index 0 in the each block
+    if (wid == 0) {
+        partial_sums = warp_reduce_sum(partial_sums);
+    }
+
+    // Return partial sum computed within the whole block
+    return partial_sums;
+}// end of block_reduce_sum
+//---------------------------------------------------------------------------------------------------------------------
+
+
+/**
+ * CUDA kernel to update particles
+ * @param p       - particles
+ * @param comX    - pointer to a center of mass position in X
+ * @param comY    - pointer to a center of mass position in Y
+ * @param comZ    - pointer to a center of mass position in Z
+ * @param comW    - pointer to a center of mass weight
+ * @param lock    - pointer to a user-implemented lock
+ * @param N       - Number of particles
+ */
+__global__ void centerOfMass(t_particles p, float* comX, float* comY, float* comZ, float* comW, int* lock, const int N)
+{
+    // Initializations the sums within the registers for each thread
+    // x (pos_x), y (pos_y), z (pos_z), w (weights)
+    float4 sums = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    // Reduce multiple particles per thread
+    // Each thread starts at the own thread index and shifts about the overall number of threads in the grid
+    for (int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < N; idx += blockDim.x * gridDim.x) {
+        // Loads the weights of particle to reduce the duplicate readings from the memory
+        float weight_i = p.weight[idx];
+        // Computes the product of relevant position and weight and subsequent addition to the thread registers sums
+        sums.x += p.pos_x[idx] * weight_i;  // position x
+        sums.y += p.pos_y[idx] * weight_i;  // position y
+        sums.z += p.pos_z[idx] * weight_i;  // position z
+        sums.w += p.weight[idx];            // weight
+    }
+
+    // Perform the reduction across the entire block
+    sums = block_reduce_sum(sums);
+
+    // Thread with index 0 within the block writes the result of the reduction to the GPU memory after the computation
+    if (threadIdx.x == 0) {
+        // Ensures the mutual exclusion for reducing the result to the global memory between the different blocks
+        while (0 != atomicCAS(lock, 0, 1)) {}
+        // Writes the individual results of the reduction to the final results into global memory GPU
+        *comX += sums.x;
+        *comY += sums.y;
+        *comZ += sums.z;
+        *comW += sums.w;
+        // Returns the lock to write to the shared global memory GPU
+        atomicExch(lock, 0);
+    }
+
+}// end of centerOfMass
 //----------------------------------------------------------------------------------------------------------------------
