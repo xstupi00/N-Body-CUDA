@@ -18,6 +18,8 @@
 /* Gravitation constant */
 constexpr float G =  6.67384e-11f;
 constexpr float COLLISION_DISTANCE = 0.01f;
+/* Initialize the warp size for computation of the reduction */
+constexpr int WARP_SIZE = 32;
 
 
 /**
@@ -58,20 +60,25 @@ __global__ void calculate_velocity(t_particles p, int N, float dt);
  */
 __global__ void centerOfMass(t_particles p, float* comX, float* comY, float* comZ, float* comW, int* lock, const int N);
 
+
+/**
+ * CUDA kernel function to perform reduction across the entire block
+ * @param partial_sums  - partial sums within individual threads in the blocks
+ */
 __inline__ __device__ float4 block_reduce_sum(float4 partial_sums);
 
+
+/**
+ * CUDA kernel function to perform shuffle based warp reduction
+ * @param partial_sums  - partial sums within individual threads in the blocks
+ */
 __inline__ __device__ float4 warp_reduce_sum(float4 partial_sums);
+
 
 /**
  * CPU implementation of the Center of Mass calculation
  * @param memDesc - Memory descriptor of particle data on CPU side
  */
 float4 centerOfMassCPU(MemDesc& memDesc);
-
-/**
- * Check whether the given numner is the power of number two or it is not.
- * @param x - Number to check whether it is the power of two
- */
-bool ispow2(int x);
 
 #endif /* __NBODY_H__ */
