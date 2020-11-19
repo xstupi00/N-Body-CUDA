@@ -189,11 +189,9 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaMemset(lock, 0, sizeof(int)));
 
     // Computes the size of the shared memory for reduction block
-    size_t shm_mem = (red_thr_blc / 32) * sizeof(float) * 4;
+    size_t shm_mem = (red_thr_blc / WARP_SIZE) * sizeof(float) * 4;
     // Calls reduction kernel to compute the Center of Mass
-    centerOfMass <<<reductionGrid, red_thr_blc, shm_mem>>> (
-            particles_gpu, &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
-    );
+    callCenterOfMass(particles_gpu, &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem);
 
     cudaDeviceSynchronize();
 

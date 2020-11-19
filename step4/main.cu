@@ -232,8 +232,8 @@ int main(int argc, char **argv) {
         // Initializes or sets device memory to a value in the relevant Compute mass stream
         checkCudaErrors(cudaMemsetAsync(comGPU, 0, sizeof(float4), cm_stream));
         // Calls reduction kernel to compute the Center of Mass
-        centerOfMass <<< reductionGrid, red_thr_blc, shm_mem_mass, cm_stream >>> (
-            particles_gpu[s & 1ul], &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
+        callCenterOfMass(
+            particles_gpu[s & 1ul], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, cm_stream
         );
         // Copies Center of mass data from device to host in the relevant Compute Mass stream
         checkCudaErrors(cudaMemcpyAsync(comCPU, comGPU, sizeof(float4), cudaMemcpyDeviceToHost, cm_stream));
@@ -274,8 +274,8 @@ int main(int argc, char **argv) {
     // Initializes or sets device memory to a zero value
     checkCudaErrors(cudaMemset(comGPU, 0, sizeof(float4)));
     // Calls reduction kernel to compute the final Center of Mass results
-    centerOfMass <<< reductionGrid, red_thr_blc, shm_mem_mass >>> (
-            particles_gpu[steps & 1], &comGPU[0].x, &comGPU[0].y, &comGPU[0].z, &comGPU[0].w, &lock[0], N
+    callCenterOfMass(
+        particles_gpu[steps & 1], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, cm_stream
     );
 
     gettimeofday(&t2, 0);

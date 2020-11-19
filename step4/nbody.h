@@ -58,7 +58,9 @@ __global__ void calculate_velocity(t_particles p_in, t_particles p_out, int N, f
  * @param lock    - pointer to a user-implemented lock
  * @param N       - Number of particles
  */
-__global__ void centerOfMass(t_particles p, float* comX, float* comY, float* comZ, float* comW, int* lock, const int N);
+template <bool nIsPow2>
+extern __global__
+void centerOfMass(t_particles p, float* comX, float* comY, float* comZ, float* comW, int* lock, const int N);
 
 
 /**
@@ -80,5 +82,26 @@ __inline__ __device__ float4 warp_reduce_sum(float4 partial_sums);
  * @param memDesc - Memory descriptor of particle data on CPU side
  */
 float4 centerOfMassCPU(MemDesc& memDesc);
+
+/**
+ * Check whether the given number is the power of number two or it is not.
+ * @param x - Number to check whether it is the power of two
+ */
+bool ispow2(int x);
+
+/**
+ * Wrapper to call kernel for computing the Center Of Mass on GPU.
+ * @param particles_gpu     - particles structure
+ * @param com               - center of mass structure
+ * @param lock              - binary lock
+ * @param N                 - number of particles
+ * @param reduction_grid    - size of the reduction grid
+ * @param red_thr_blc       - number of reduction threads per block
+ * @param shm_mem           - required size of the shared memory
+ */
+void callCenterOfMass(
+        t_particles particles_gpu, float4* com, int* lock, const int N,
+        const int reduction_grid, const int red_thr_blc, const size_t shm_mem, cudaStream_t stream
+);
 
 #endif /* __NBODY_H__ */
