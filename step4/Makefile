@@ -8,7 +8,7 @@ N_BIG=30720
 N_TEST=131072
 DT=0.01f
 STEPS=500
-THREADS_PER_BLOCK=256
+THREADS_PER_BLOCK=1024
 RED_THREADS=4096
 RED_THREADS_PER_BLOCK=128
 WRITE_INTESITY=20
@@ -22,7 +22,6 @@ OUTPUT_TEST=stepTOutput.h5
 
 
 INCLUDE=../commons
-ICUDA=/apps/all/CUDA/10.0.130/samples/common/inc
 LIBS=-lhdf5
 
 FLAGS=-lineinfo
@@ -32,7 +31,7 @@ FLAGS=-lineinfo
 all: nbody
 
 nbody: nbody.cu main.cu nbody.h
-	nvcc ${FLAGS} -I${INCLUDE} -I${ICUDA} nbody.cu main.cu ../commons/h5Helper.cpp ${LIBS} -o nbody
+	nvcc ${FLAGS} -I${INCLUDE} nbody.cu main.cu ../commons/h5Helper.cpp ${LIBS} -o nbody
 
 clean:
 	rm -f *.o nbody
@@ -70,7 +69,7 @@ profile:
 		--metrics gst_efficiency \
 		--metrics gst_throughput \
 		--metrics gld_throughput \
-		./nbody ${N} ${DT} 1 ${T} 0  ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT) $(OUTPUT)
+		./nbody ${N} ${DT} 1 ${T} 0 ${RED_THREADS} ${RED_THREADS_PER_BLOCK} $(INPUT) $(OUTPUT)
 
 profile_big:
 	nvprof \

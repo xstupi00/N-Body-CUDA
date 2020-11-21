@@ -19,7 +19,6 @@ OUTPUT_BIG=stepBOutput.h5
 
 
 INCLUDE=../commons
-ICUDA=/apps/all/CUDA/10.0.130/samples/common/inc
 LIBS=-lhdf5
 
 FLAGS=
@@ -29,7 +28,7 @@ FLAGS=
 all: nbody
 
 nbody: nbody.cu main.cu nbody.h
-	nvcc ${FLAGS} -I${INCLUDE} -I${ICUDA} nbody.cu main.cu ../commons/h5Helper.cpp ${LIBS} -o nbody
+	nvcc ${FLAGS} -I${INCLUDE} nbody.cu main.cu ../commons/h5Helper.cpp ${LIBS} -o nbody
 
 clean:
 	rm -f *.o nbody

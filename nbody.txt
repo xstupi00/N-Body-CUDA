@@ -148,9 +148,6 @@ Porovnejte metriky s předchozím krokem:
 
 The metrics in this step are significantly affected by using shared memory, in comparison to the previous step (Step1).
 
-Issue Stall Reasons (Data Request) (stall_memory_dependency): 12.76% (Step1) => 0.01% (Step2)
-    ->
-
 Shared Load Transactions (shared_load_transactions): 0 (Step1) => 117 964 800 (Step1)
     -> Since in the Step1 the shared memory was not used, the number of shared load transactions was equal to zero. In
        this step with the using of the shared memory was noticed the increase of this metric to the value 117 964 800.
@@ -159,6 +156,15 @@ Shared Load Transactions (shared_load_transactions): 0 (Step1) => 117 964 800 (S
         -- Global Load Transactions (Step1) = 117 971 520 => Shared Load Transactions (Step2) = 117 964 800
        Thus, we can see, that the loadings from the global memory was almost completely replaced by the loadings from
        the shared memory, in this step.
+
+Issue Stall Reasons (Data Request) (stall_memory_dependency): 12.76% (Step1) => 0.01% (Step2)
+    -> In the Step0, was the data loading only from global memory, and further, the different threads accessed to the
+       same location in one iteration. Due to these circumstances can be occurred the situation, when the SM processors
+       have to wait to data, and by such way can be exists downtimes. The efficiency of SM processors should be low, if
+       these preconditions were met.
+    -> In this Step1, the loading from the global memory was restricted and the threads primarily loadings from the
+       shared memory. As a result, the SM processors do not have to wait for data, there exists only minimal downtimes,
+       and is very probably, that the efficiency of the SM processors will increase.
 
 Global Load Transactions (gld_transactions): 117 971 520 (Step1) => 216 960 (Step2)
     -> We drastically decreased the number of global load transactions by usage the shared memory. In the previous
@@ -197,7 +203,7 @@ N        čas CPU [s]    čas GPU [s]    propustnost paměti [MB/s]    výkon [M
 8192      1869.88        3.053371              2330.9791               472557.6708       612.3985         1024
 16384     ~7479.52       6.639555              5893.8385               869260.2224      ~1126.5092        256
 32768     ~29918.08      29.237558             8216.5539               789595.9223      ~1023.2756        512
-65536     ~119672.32     117.196181            14664.528               787911.1722      ~1021.1281        512
+65536     ~119672.32     117.196181            14193.225               787911.1722      ~1021.1281        512
 131072    ~478689.28     411.074028            24770.7922              ~788334.1568     ~1164.4843        512
 
 Od jakého počtu částic se vyplatí počítat na grafické kartě?

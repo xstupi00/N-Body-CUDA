@@ -13,10 +13,18 @@
 #include <cmath>
 #include <vector>
 
-#include <helper_cuda.h>
-
 #include "nbody.h"
 #include "h5Helper.h"
+
+#define checkCudaErrors(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+    if (code != cudaSuccess)
+    {
+        fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort) exit(code);
+    }
+}
 
 
 /**
@@ -172,18 +180,17 @@ int main(int argc, char **argv) {
     size_t shm_mem_mass = (red_thr_blc / 32) * sizeof(float) * 4;
 
     // Create CUDA stream to perform effect concurrency
-    cudaStream_t cm_stream, cp_stream, wp_stream;
+    cudaStream_t cm_stream, cp_stream, mem_stream;
     // Create an asynchronous stream.
     checkCudaErrors(cudaStreamCreate(&cm_stream)); // Compute Mass stream
     checkCudaErrors(cudaStreamCreate(&cp_stream)); // Compute Particles stream
-    checkCudaErrors(cudaStreamCreate(&wp_stream)); // Write particles stream
+    checkCudaErrors(cudaStreamCreate(&mem_stream)); // Write particles stream
 
     // Create CUDA events to synchronize individual CUDA stream during the computation
-    cudaEvent_t cm_event, cp_event, wp_event;
+    cudaEvent_t cm_event, cp_event;
     // Creates an event object.
     checkCudaErrors(cudaEventCreate(&cm_event)); // Compute Mass event
     checkCudaErrors(cudaEventCreate(&cp_event)); // Compute Particles event
-    checkCudaErrors(cudaEventCreate(&wp_event)); // Write particles event
 
     // Auxiliary variable to register a record number at continuous writing to the file
     size_t records = 0;
@@ -201,67 +208,74 @@ int main(int argc, char **argv) {
         // Records an event for finish the calculation of velocity
         checkCudaErrors(cudaEventRecord(cp_event, cp_stream));
 
-        // Copies particles data from device to host
-        // Copies the particles data computed in the previous iteration to CPU for writing to the file
-        checkCudaErrors(cudaMemcpyAsync(
-            particles_cpu.pos_x, particles_gpu[s & 1ul].pos_x, size, cudaMemcpyDeviceToHost, wp_stream
-        ));
-        checkCudaErrors(cudaMemcpyAsync(
-            particles_cpu.pos_y, particles_gpu[s & 1ul].pos_y, size, cudaMemcpyDeviceToHost, wp_stream
-        ));
-        checkCudaErrors(cudaMemcpyAsync(
-            particles_cpu.pos_z, particles_gpu[s & 1ul].pos_z, size, cudaMemcpyDeviceToHost, wp_stream
-        ));
-        checkCudaErrors(cudaMemcpyAsync(
-            particles_cpu.vel_x, particles_gpu[s & 1ul].vel_x, size, cudaMemcpyDeviceToHost, wp_stream
-        ));
-        checkCudaErrors(cudaMemcpyAsync(
-            particles_cpu.vel_y, particles_gpu[s & 1ul].vel_y, size, cudaMemcpyDeviceToHost, wp_stream
-        ));
-        checkCudaErrors(cudaMemcpyAsync(
-            particles_cpu.vel_z, particles_gpu[s & 1ul].vel_z, size, cudaMemcpyDeviceToHost, wp_stream
-        ));
-        checkCudaErrors(cudaMemcpyAsync(
-            particles_cpu.weight, particles_gpu[s & 1ul].weight, size, cudaMemcpyDeviceToHost, wp_stream
-        ));
-
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //                                          FILL IN: synchronization  (step 4)                                //
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        // Initializes or sets device memory to a value in the relevant Compute mass stream
-        checkCudaErrors(cudaMemsetAsync(comGPU, 0, sizeof(float4), cm_stream));
-        // Calls reduction kernel to compute the Center of Mass
-        callCenterOfMass(
-            particles_gpu[s & 1ul], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, cm_stream
-        );
-        // Copies Center of mass data from device to host in the relevant Compute Mass stream
-        checkCudaErrors(cudaMemcpyAsync(comCPU, comGPU, sizeof(float4), cudaMemcpyDeviceToHost, cm_stream));
-
         if (writeFreq > 0 && (s % writeFreq == 0)) {
+
+            // Initializes or sets device memory to a value in the relevant Compute mass stream
+            checkCudaErrors(cudaMemsetAsync(comGPU, 0, sizeof(float4), cm_stream));
+            // Calls reduction kernel to compute the Center of Mass
+            callCenterOfMass(
+                particles_gpu[s & 1ul], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, cm_stream
+            );
+            // Sets event when finished the computation of Center of Mass in relevant stream
+            checkCudaErrors(cudaEventRecord(cm_event, cm_stream));
+
+            // Copies particles data from device to host
+            // Copies the particles data computed in the previous iteration to CPU for writing to the file
+            checkCudaErrors(cudaMemcpyAsync(
+                particles_cpu.pos_x, particles_gpu[s & 1ul].pos_x, size, cudaMemcpyDeviceToHost, mem_stream
+            ));
+            checkCudaErrors(cudaMemcpyAsync(
+                particles_cpu.pos_y, particles_gpu[s & 1ul].pos_y, size, cudaMemcpyDeviceToHost, mem_stream
+            ));
+            checkCudaErrors(cudaMemcpyAsync(
+                particles_cpu.pos_z, particles_gpu[s & 1ul].pos_z, size, cudaMemcpyDeviceToHost, mem_stream
+            ));
+            checkCudaErrors(cudaMemcpyAsync(
+                particles_cpu.vel_x, particles_gpu[s & 1ul].vel_x, size, cudaMemcpyDeviceToHost, mem_stream
+            ));
+            checkCudaErrors(cudaMemcpyAsync(
+                particles_cpu.vel_y, particles_gpu[s & 1ul].vel_y, size, cudaMemcpyDeviceToHost, mem_stream
+            ));
+            checkCudaErrors(cudaMemcpyAsync(
+                particles_cpu.vel_z, particles_gpu[s & 1ul].vel_z, size, cudaMemcpyDeviceToHost, mem_stream
+            ));
+
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //                                      FILL IN: synchronization  (step 4)                                //
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            // Waits for memory copy stream when finished the tasks to copy particles data from GPU to CPU.
+            checkCudaErrors(cudaStreamSynchronize(mem_stream));
+
+            // Waits for event which marks the finished of the Center of Mass computation
+            checkCudaErrors(cudaStreamWaitEvent(mem_stream, cm_event, 0));
+            // Copies Center of mass data from device to host in the relevant memory copy stream
+            checkCudaErrors(cudaMemcpyAsync(comCPU, comGPU, sizeof(float4), cudaMemcpyDeviceToHost, mem_stream));
+
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////
             //                          FILL IN: synchronization and file access logic (step 4)                       //
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // Waits for Compute Mass stream tasks to complete.
-            checkCudaErrors(cudaStreamSynchronize(cm_stream));
+
+            // Writing final values to the file
+            h5Helper.writeParticleData(records);
+
+            // Waits for memory stream finished the copying of center of mass data from CPU to GPU.
+            checkCudaErrors(cudaStreamSynchronize(mem_stream));
             // Writing center of mass data to the file
             h5Helper.writeCom(
                 comCPU[0].x / comCPU[0].w,
                 comCPU[0].y / comCPU[0].w,
                 comCPU[0].z / comCPU[0].w,
-                comCPU[0].w, records
+                comCPU[0].w, records++
             );
-
-            // Waits for Write particles stream tasks to complete.
-            checkCudaErrors(cudaStreamSynchronize(wp_stream));
-            // Writing final values to the file
-            h5Helper.writeParticleData(records++);
+            // Before the next computation of new particles positions have be finished the computation of COM
+            // The computation of the COM loads the data which cannot be overwritten by next computation of particles
+            checkCudaErrors(cudaStreamWaitEvent(cp_stream, cm_event, 0));
         }
 
-//        checkCudaErrors(cudaStreamSynchronize(cp_stream));
         // Make a compute stream wait on an event.
-        // Before the next iteration have to be finished the calculation of velocity within relevant kernel
-        checkCudaErrors(cudaStreamWaitEvent(wp_stream, cp_event, 0));
+        // Before the next iteration have to be finished the calculation of velocities within relevant kernel
+        checkCudaErrors(cudaStreamWaitEvent(mem_stream, cp_event, 0));
         checkCudaErrors(cudaStreamWaitEvent(cm_stream, cp_event, 0));
     }
 
@@ -275,7 +289,7 @@ int main(int argc, char **argv) {
     checkCudaErrors(cudaMemset(comGPU, 0, sizeof(float4)));
     // Calls reduction kernel to compute the final Center of Mass results
     callCenterOfMass(
-        particles_gpu[steps & 1], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, cm_stream
+        particles_gpu[steps & 1], &comGPU[0], &lock[0], N, reductionGrid, red_thr_blc, shm_mem_mass, (cudaStream_t) 0
     );
 
     gettimeofday(&t2, 0);
@@ -329,12 +343,11 @@ int main(int argc, char **argv) {
 
     // 	Destroys and cleans up an asynchronous streams
     checkCudaErrors(cudaStreamDestroy(cp_stream));
-    checkCudaErrors(cudaStreamDestroy(wp_stream));
     checkCudaErrors(cudaStreamDestroy(cm_stream));
+    checkCudaErrors(cudaStreamDestroy(mem_stream));
 
     // Destroys an event objects
     checkCudaErrors(cudaEventDestroy(cp_event));
-    checkCudaErrors(cudaEventDestroy(wp_event));
     checkCudaErrors(cudaEventDestroy(cm_event));
 
     // Free page-locked memory
