@@ -191,12 +191,13 @@ Requested Global Load Throughput (gld_requested_throughput): 4.6226GB/s (Step1) 
        significant decrease, since the frequency of accessing to the global memory is also significantly low.
 
 
-Krok 5: analýza výkonu
+Krok 5: analýza výkonu (steps=500)
 ======================
 N        čas CPU [s]    čas GPU [s]    propustnost paměti [MB/s]    výkon [MFLOPS]    zrychlení [-]     thr_blc
 128       0.463157       0.085749              238.0742                4311.7470         5.4013           32
 256       1.82851        0.123418              185.5281                11559.2863        14.8155          256
 512       7.29554        0.217018              251.3829                26057.0459        33.6172          512
+-----------------------------------------------------------------------------------------------------------------------
 1024      29.1873        0.402592              380.5525                56050.3934        72.4984          1024
 2048      116.772        0.777541              677.9731                116010.8598       150.1811         1024
 4096      467.235        1.535198              1241.9881               234982.7344       304.3484         1024
