@@ -62,7 +62,7 @@ Krok 1: optimalizace kódu
 Došlo ke zrychlení?
 
 Yes, the performance acceleration was recorded. The results for the specific sizes of input are available in the file
-times.txt. On average, an acceleration of about 0.325% in comparison to the previous step (Step0), was recorded.
+times.txt. On average, an acceleration of about 32.50% in comparison to the previous step (Step0), was recorded.
 
 Popište dva hlavní důvody:
 
@@ -85,6 +85,8 @@ overheads have been eliminated
 
 
 Porovnejte metriky s předchozím krokem:
+
+Profiling command: ./nbody 30720 0.01f 1 1024 0 4096 128 ../sampledata/30720.h5 stepBOutput.h5
 
 The individual metrics are almost the same as in the Step0 at the kernel calculate_gravitation_velocity. This is due
 to the fact, that this kernel included the majority part of the computation already in Step0. On the other hand, the
@@ -126,7 +128,7 @@ Krok 2: sdílená paměť
 Došlo ke zrychlení?
 
 Yes, the performance acceleration was recorded. The results for the specific sizes of input are available in the file
-times.txt. On average, an acceleration of about 0.33% in comparison to the previous step (Step1), was recorded.
+times.txt. On average, an acceleration of about 28.25% in comparison to the previous step (Step1), was recorded.
 
 Zdůvodněte:
 
@@ -146,6 +148,8 @@ In summary, the primary reasons which affected the performance are:
 
 Porovnejte metriky s předchozím krokem:
 
+Profiling command: ./nbody 30720 0.01f 1 1024 0 4096 128 ../sampledata/30720.h5 stepBOutput.h5
+
 The metrics in this step are significantly affected by using shared memory, in comparison to the previous step (Step1).
 
 Shared Load Transactions (shared_load_transactions): 0 (Step1) => 117 964 800 (Step1)
@@ -158,13 +162,12 @@ Shared Load Transactions (shared_load_transactions): 0 (Step1) => 117 964 800 (S
        the shared memory, in this step.
 
 Issue Stall Reasons (Data Request) (stall_memory_dependency): 12.76% (Step1) => 0.01% (Step2)
-    -> In the Step0, was the data loading only from global memory, and further, the different threads accessed to the
-       same location in one iteration. Due to these circumstances can be occurred the situation, when the SM processors
-       have to wait to data, and by such way can be exists downtimes. The efficiency of SM processors should be low, if
-       these preconditions were met.
+    -> In the Step0, was the data loading only from global memory, which takes a lot of clocks (440 clocks). Due to
+       these circumstances can be occurred the situation, when the SM processors have to wait to data, and by such way
+       can be exists down-times. The efficiency of SM processors should be low, if these preconditions were met.
     -> In this Step1, the loading from the global memory was restricted and the threads primarily loadings from the
-       shared memory. As a result, the SM processors do not have to wait for data, there exists only minimal downtimes,
-       and is very probably, that the efficiency of the SM processors will increase.
+       shared memory. which takes only 48 clocks. As a result, the SM processors do not have to wait for data, there
+       exists only minimal downtimes, and is very probably, that the efficiency of the SM processors will increase.
 
 Global Load Transactions (gld_transactions): 117 971 520 (Step1) => 216 960 (Step2)
     -> We drastically decreased the number of global load transactions by usage the shared memory. In the previous
@@ -195,9 +198,9 @@ Krok 5: analýza výkonu (steps=500)
 ======================
 N        čas CPU [s]    čas GPU [s]    propustnost paměti [MB/s]    výkon [MFLOPS]    zrychlení [-]     thr_blc
 128       0.463157       0.085749              238.0742                4311.7470         5.4013           32
+-----------------------------------------------------------------------------------------------------------------------
 256       1.82851        0.123418              185.5281                11559.2863        14.8155          256
 512       7.29554        0.217018              251.3829                26057.0459        33.6172          512
------------------------------------------------------------------------------------------------------------------------
 1024      29.1873        0.402592              380.5525                56050.3934        72.4984          1024
 2048      116.772        0.777541              677.9731                116010.8598       150.1811         1024
 4096      467.235        1.535198              1241.9881               234982.7344       304.3484         1024
@@ -208,4 +211,7 @@ N        čas CPU [s]    čas GPU [s]    propustnost paměti [MB/s]    výkon [M
 131072    ~478689.28     411.074028            24770.7922              ~788334.1568     ~1164.4843        512
 
 Od jakého počtu částic se vyplatí počítat na grafické kartě?
+   -> Since we suppose, that the optimized parallel version would be 10x faster, then is more efficient compute the
+      simulation on the GPU from N=256, which achieved the 14x acceleration in comparison to simple CPU version.
+
 ===================================

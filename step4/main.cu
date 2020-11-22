@@ -268,9 +268,6 @@ int main(int argc, char **argv) {
                 comCPU[0].z / comCPU[0].w,
                 comCPU[0].w, records++
             );
-            // Before the next computation of new particles positions have be finished the computation of COM
-            // The computation of the COM loads the data which cannot be overwritten by next computation of particles
-            // checkCudaErrors(cudaStreamWaitEvent(cp_stream, cm_event, 0));
         }
 
         // Make a compute stream wait on an event.
